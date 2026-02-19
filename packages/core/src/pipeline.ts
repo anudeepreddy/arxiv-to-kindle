@@ -1,0 +1,191 @@
+import { tmpdir } from 'os';
+import { join, dirname } from 'path';
+import fs from 'fs-extra';
+import { normalizeArxivId, type NormalizedArxivId } from './id-parser.js';
+import { probeAvailability, type ProbeResult } from './probe.js';
+import { fetchHtml } from './fetcher.js';
+import { sanitizeScripts, removeTransformStyles } from './cleaner.js';
+import { resolveImageUrls } from './image-resolver.js';
+import { downloadImages, type ImageDownloadResult } from './image-downloader.js';
+import { prepareForPandoc, type ImageMapping } from './pandoc-prep.js';
+import { runPandoc } from './pandoc.js';
+import { convertLatexSource } from './latex-fallback.js';
+import { injectMetadata, type EpubMetadata } from './epub-meta.js';
+import { checkDependencies } from './preflight.js';
+import { PandocNotInstalledError, InvalidIdError, ArxivNotFoundError } from './errors.js';
+import { NotFoundError } from './errors.js';
+
+export interface ConversionOptions {
+  preferMathml?: boolean;
+  onProgress?: (stage: string, message?: string) => void;
+  metadata?: {
+    title?: string;
+    authors?: string[];
+    abstract?: string;
+    subjects?: string[];
+  };
+  skipPreflight?: boolean;
+}
+
+export interface ConversionResult {
+  format: 'html' | 'ar5iv' | 'latex' | 'pdf_fallback';
+  outputPath: string;
+}
+
+async function handleHtmlRoute(
+  probeResult: { type: 'html' | 'ar5iv'; url: string },
+  outputPath: string,
+  tempDir: string,
+  idString: string,
+  options: ConversionOptions,
+  onProgress: (stage: string, message?: string) => void
+): Promise<void> {
+  onProgress('fetching', 'Downloading HTML...');
+  const html = await fetchHtml(probeResult.url);
+
+  onProgress('cleaning', 'Sanitizing HTML...');
+  let cleanedHtml = sanitizeScripts(html);
+  cleanedHtml = removeTransformStyles(cleanedHtml);
+
+  onProgress('resolving', 'Processing images...');
+  const baseUrl = probeResult.url.endsWith('/') ? probeResult.url : probeResult.url + '/';
+  const { cleanedHtml: resolvedHtml, imageUrls } = resolveImageUrls(cleanedHtml, baseUrl);
+
+  const imagesDir = join(tempDir, 'images');
+  let imageMapping: ImageMapping[] = [];
+  
+  if (imageUrls.length > 0) {
+    await fs.ensureDir(imagesDir);
+    onProgress('downloading', 'Downloading images...');
+    const downloadResults = await downloadImages(imageUrls, imagesDir);
+    imageMapping = downloadResults
+      .filter((r: ImageDownloadResult) => r.success)
+      .map((r: ImageDownloadResult) => ({
+        url: r.originalUrl,
+        localPath: r.localPath,
+      }));
+  }
+
+  onProgress('preparing', 'Preparing for conversion...');
+  const preparedHtml = prepareForPandoc(resolvedHtml, imageMapping, idString);
+
+  const inputHtmlPath = join(tempDir, 'input.html');
+  await fs.writeFile(inputHtmlPath, preparedHtml);
+
+  onProgress('converting', 'Converting to EPUB...');
+  await runPandoc(inputHtmlPath, outputPath, {
+    mathFormat: options.preferMathml !== false ? 'mathml' : 'svg',
+  });
+}
+
+async function handleLatexRoute(
+  id: string,
+  outputPath: string,
+  tempDir: string,
+  onProgress: (stage: string, message?: string) => void
+): Promise<void> {
+  onProgress('latex', 'Converting from LaTeX source...');
+  await convertLatexSource(id, outputPath, tempDir);
+}
+
+async function handlePdfRoute(
+  id: string,
+  outputPath: string,
+  tempDir: string,
+  onProgress: (stage: string, message?: string) => void
+): Promise<void> {
+  onProgress('pdf', 'PDF fallback - downloading...');
+  throw new Error(
+    `PDF fallback not implemented for arXiv:${id}. Manual conversion required.`
+  );
+}
+
+export async function convertArxivToEpub(
+  idOrUrl: string,
+  outputPath: string,
+  options?: ConversionOptions
+): Promise<ConversionResult> {
+  const onProgress = options?.onProgress || (() => {});
+
+  if (!options?.skipPreflight) {
+    onProgress('preflight', 'Checking dependencies...');
+    const preflight = await checkDependencies();
+    if (!preflight.pandoc) {
+      throw new PandocNotInstalledError();
+    }
+  }
+
+  const normalizedId: NormalizedArxivId | null = normalizeArxivId(idOrUrl);
+  if (!normalizedId) {
+    throw new InvalidIdError(idOrUrl);
+  }
+
+  const idString = normalizedId.version
+    ? `${normalizedId.id}v${normalizedId.version}`
+    : normalizedId.id;
+
+  const tempDir = join(tmpdir(), `arxiv-${Date.now()}`);
+  await fs.ensureDir(tempDir);
+
+  try {
+    onProgress('probing', 'Checking available formats...');
+    const probeResult: ProbeResult = await probeAvailability(idString);
+
+    let format: ConversionResult['format'];
+
+    switch (probeResult.type) {
+      case 'html':
+        await handleHtmlRoute(
+          { type: 'html', url: probeResult.url },
+          outputPath,
+          tempDir,
+          idString,
+          options || {},
+          onProgress
+        );
+        format = 'html';
+        break;
+
+      case 'ar5iv':
+        await handleHtmlRoute(
+          { type: 'ar5iv', url: probeResult.url },
+          outputPath,
+          tempDir,
+          idString,
+          options || {},
+          onProgress
+        );
+        format = 'ar5iv';
+        break;
+
+      case 'latex':
+        await handleLatexRoute(idString, outputPath, tempDir, onProgress);
+        format = 'latex';
+        break;
+
+      case 'pdf':
+        await handlePdfRoute(idString, outputPath, tempDir, onProgress);
+        format = 'pdf_fallback';
+        break;
+    }
+
+    onProgress('metadata', 'Adding metadata...');
+    const epubMetadata: EpubMetadata = {
+      title: options?.metadata?.title || `arXiv:${idString}`,
+      authors: options?.metadata?.authors || [],
+      abstract: options?.metadata?.abstract || '',
+      arxivId: idString,
+      subjects: options?.metadata?.subjects || [],
+    };
+    await injectMetadata(outputPath, epubMetadata);
+
+    onProgress('complete', 'Done!');
+
+    return {
+      format,
+      outputPath,
+    };
+  } finally {
+    await fs.remove(tempDir);
+  }
+}

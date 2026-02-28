@@ -3,4 +3,3 @@ node_modules
 telemetry*
 .turbo
 *.epub
-*.md

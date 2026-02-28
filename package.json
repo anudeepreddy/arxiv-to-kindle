@@ -10,8 +10,8 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "dev": "turbo run dev",
-    "publish": "npm run build && npm publish -w packages/core && npm publish -w apps/cli",
-    "publish:core": "npm run build -w packages/core && cd packages/core && npm publish",
+    "publish": "npm run build && npm publish -w packages/core --access=public && npm publish -w apps/cli",
+    "publish:core": "npm run build -w packages/core && cd packages/core && npm publish --access=public",
     "publish:cli": "npm run build -w apps/cli && cd apps/cli && npm publish"
   },
   "devDependencies": {

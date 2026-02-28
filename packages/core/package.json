@@ -1,6 +1,7 @@
 {
   "name": "@arxiv-to-kindle/core",
   "version": "0.1.0",
+  "description": "Core library for converting arXiv papers to EPUB format",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +11,27 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anudeepreddy/arxiv-to-kindle.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "arxiv",
+    "epub",
+    "kindle",
+    "converter",
+    "ebook"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/anudeepreddy/arxiv-to-kindle/issues"
+  },
+  "homepage": "https://github.com/anudeepreddy/arxiv-to-kindle#readme",
   "scripts": {
     "build": "tsc",
     "test": "vitest run",

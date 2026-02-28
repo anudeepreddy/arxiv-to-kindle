@@ -2,3 +2,5 @@ node_modules
 **/dist
 telemetry*
 .turbo
+*.epub
+*.md

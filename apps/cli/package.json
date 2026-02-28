@@ -1,6 +1,6 @@
 {
   "name": "arxiv-to-kindle",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Convert arXiv papers to EPUB format for e-readers like Kindle",
   "type": "module",
   "bin": {

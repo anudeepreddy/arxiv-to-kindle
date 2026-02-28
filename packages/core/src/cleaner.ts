@@ -38,6 +38,11 @@ export function removeTransformStyles(html: string): string {
   return $.html();
 }
 
+export function normalizeWhitespace(html: string): string {
+  // Convert non-breaking spaces (U+00A0) to regular spaces
+  return html.replace(/\u00A0/g, ' ');
+}
+
 export function sanitizeScripts(html: string): string {
   const $ = cheerio.load(html);
 

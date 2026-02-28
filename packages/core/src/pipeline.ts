@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import { normalizeArxivId, type NormalizedArxivId } from './id-parser.js';
 import { probeAvailability, type ProbeResult } from './probe.js';
 import { fetchHtml } from './fetcher.js';
-import { sanitizeScripts, removeTransformStyles } from './cleaner.js';
+import { sanitizeScripts, removeTransformStyles, normalizeWhitespace } from './cleaner.js';
 import { resolveImageUrls } from './image-resolver.js';
 import { downloadImages, type ImageDownloadResult } from './image-downloader.js';
 import { prepareForPandoc, type ImageMapping } from './pandoc-prep.js';
@@ -87,6 +87,7 @@ async function handleHtmlRoute(
   onProgress('cleaning', 'Sanitizing HTML...');
   let cleanedHtml = sanitizeScripts(html);
   cleanedHtml = removeTransformStyles(cleanedHtml);
+  cleanedHtml = normalizeWhitespace(cleanedHtml);
 
   onProgress('resolving', 'Processing images...');
   // For arXiv HTML, images are in a versioned subdirectory (e.g., 2602.21548v2/)

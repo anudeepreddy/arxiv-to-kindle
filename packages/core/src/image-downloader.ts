@@ -22,12 +22,25 @@ const CONTENT_TYPE_MAP: Record<string, string> = {
 
 const BINARY_EXTENSIONS = ['.shtml', '.html', '.htm', '.php', '.asp', '.aspx', '.jsp'];
 
-function generateFilename(url: string): string {
+const SVG_EXTENSIONS = ['.svg', '.svgz'];
+
+function isSvgContent(data: Buffer): boolean {
+  const header = data.slice(0, 200).toString('utf8').toLowerCase().trim();
+  return header.startsWith('<?xml') || header.startsWith('<svg') || header.includes('<svg');
+}
+
+function generateFilename(url: string, isSvg: boolean = false): string {
   const urlHash = crypto.createHash('md5').update(url).digest('hex').slice(0, 8);
   
   try {
     const urlPath = new URL(url).pathname;
     const ext = path.extname(urlPath).toLowerCase();
+    
+    if (isSvg || ext === '.svg' || ext === '.svgz') {
+      const baseName = path.basename(urlPath, ext) || 'image';
+      const sanitizedBase = baseName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50);
+      return `${sanitizedBase}_${urlHash}.svg`;
+    }
     
     if (IMAGE_EXTENSIONS.includes(ext)) {
       const baseName = path.basename(urlPath, ext);
@@ -57,8 +70,8 @@ async function downloadSingleImage(
   tempDir: string,
   timeout: number
 ): Promise<ImageDownloadResult> {
-  const filename = generateFilename(url);
-  const localPath = path.join(tempDir, filename);
+  const tempFilename = generateFilename(url);
+  const localPath = path.join(tempDir, tempFilename);
   
   try {
     const response = await axios.get(url, {
@@ -69,24 +82,35 @@ async function downloadSingleImage(
       },
     });
     
-    let finalFilename = filename;
     const contentType = response.headers['content-type'];
-    
-    if (filename.endsWith('.bin')) {
-      const ext = getExtensionFromContentType(contentType);
-      if (ext !== '.bin') {
-        finalFilename = filename.replace('.bin', ext);
-      }
-    }
-    
-    const data = Buffer.isBuffer(response.data) 
+    let data = Buffer.isBuffer(response.data) 
       ? response.data 
       : Buffer.from(response.data);
     
-    if (finalFilename.endsWith('.bin')) {
-      const detectedExt = detectExtensionFromContent(data, contentType);
-      if (detectedExt) {
-        finalFilename = finalFilename.replace('.bin', detectedExt);
+    // Check if content is SVG
+    const isSvg = isSvgContent(data);
+    
+    // Generate proper filename based on content type
+    let finalFilename: string;
+    if (isSvg) {
+      finalFilename = generateFilename(url, true);
+    } else {
+      finalFilename = generateFilename(url);
+      
+      // If still .bin, try to detect from content type
+      if (finalFilename.endsWith('.bin') && contentType) {
+        const ext = getExtensionFromContentType(contentType);
+        if (ext !== '.bin') {
+          finalFilename = finalFilename.replace('.bin', ext);
+        }
+      }
+      
+      // If still .bin, try content detection
+      if (finalFilename.endsWith('.bin')) {
+        const detectedExt = detectExtensionFromContent(data, contentType);
+        if (detectedExt) {
+          finalFilename = finalFilename.replace('.bin', detectedExt);
+        }
       }
     }
     

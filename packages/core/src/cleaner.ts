@@ -26,7 +26,7 @@ export function removeTransformStyles(html: string): string {
   $('*').each((_, element) => {
     const el = $(element);
     const attribs = 'attribs' in element ? (element as { attribs: Record<string, string> }).attribs : undefined;
-    
+
     if (attribs && attribs['style']) {
       const style = attribs['style'];
       if (style.includes('transform:') || style.includes('translate(')) {
@@ -47,17 +47,31 @@ export function sanitizeScripts(html: string): string {
   $('.ltx_note.ltx_note_front').remove();
   $('.ltx_bibliography').remove();
 
+  $('.ltx_tag.ltx_tag_item, .ltx_tag.ltx_tag_bullet').remove();
+
+  $('.ltx_item').each((_, element) => {
+    const el = $(element);
+    const style = el.attr('style');
+    if (style && style.includes('list-style-type:none')) {
+      el.removeAttr('style');
+    }
+    el.find('.ltx_para').each((_, para) => {
+      const $para = $(para);
+      $para.replaceWith($para.contents());
+    });
+  });
+
   $('*').each((_, element) => {
     const el = $(element);
     const attribs = 'attribs' in element ? (element as { attribs: Record<string, string> }).attribs : undefined;
-    
+
     if (attribs) {
       for (const attr of EVENT_HANDLERS) {
         if (attribs[attr]) {
           el.removeAttr(attr);
         }
       }
-      
+
       const href = attribs['href'];
       if (href && href.trim().toLowerCase().startsWith('javascript:')) {
         el.removeAttr('href');

@@ -101,3 +101,52 @@ export async function injectMetadata(
   zip.updateFile(opfPath, Buffer.from(updatedOpfContent, 'utf8'));
   zip.writeZip(epubPath);
 }
+
+function inlineSvgsInHtml(htmlContent: string, zip: AdmZip, basePath: string): string {
+  const svgPattern = /<img[^>]+src="([^"]*\.svg)"[^>]*>/gi;
+  let result = htmlContent;
+  let match;
+  
+  while ((match = svgPattern.exec(htmlContent)) !== null) {
+    const imgTag = match[0];
+    const srcPath = match[1];
+    // Resolve relative path from the HTML file location
+    const svgPath = srcPath.startsWith('../') 
+      ? srcPath.replace(/^\.\.\//, '')
+      : srcPath.startsWith('./') 
+        ? srcPath.substring(2)
+        : srcPath;
+    
+    const svgEntry = zip.getEntry(svgPath) || zip.getEntry(basePath + '/' + svgPath) || zip.getEntry('EPUB/' + svgPath);
+    
+    if (svgEntry) {
+      let svgContent = svgEntry.getData().toString('utf8');
+      // Remove XML declaration if present
+      svgContent = svgContent.replace(/<\?xml[^?]*\?>\s*/i, '');
+      // Remove DOCTYPE if present
+      svgContent = svgContent.replace(/<!DOCTYPE[^>]*>\s*/i, '');
+      // Replace img tag with inline SVG
+      result = result.replace(imgTag, svgContent);
+    }
+  }
+  
+  return result;
+}
+
+export async function inlineSvgs(epubPath: string): Promise<void> {
+  const zip = new AdmZip(epubPath);
+  const entries = zip.getEntries();
+
+  for (const entry of entries) {
+    if (entry.entryName.endsWith('.xhtml') || entry.entryName.endsWith('.html')) {
+      const content = entry.getData().toString('utf8');
+      const basePath = entry.entryName.split('/').slice(0, -1).join('/') || '';
+      const updatedContent = inlineSvgsInHtml(content, zip, basePath);
+      if (content !== updatedContent) {
+        zip.updateFile(entry.entryName, Buffer.from(updatedContent, 'utf8'));
+      }
+    }
+  }
+
+  zip.writeZip(epubPath);
+}

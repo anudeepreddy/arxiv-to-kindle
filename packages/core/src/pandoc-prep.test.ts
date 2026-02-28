@@ -3,19 +3,19 @@ import { prepareForPandoc, type ImageMapping } from './pandoc-prep';
 
 describe('prepareForPandoc', () => {
   describe('image URL replacement', () => {
-    it('replaces image URL with local relative path', () => {
+    it('replaces image URL with local relative path', async () => {
       const input = '<html><body><img src="https://arxiv.org/src/12345/v1/fig1.png"></body></html>';
       const imageMapping: ImageMapping[] = [
         { url: 'https://arxiv.org/src/12345/v1/fig1.png', localPath: '/tmp/xyz/abc123.png' }
       ];
-      
-      const result = prepareForPandoc(input, imageMapping);
-      
+
+      const result = await prepareForPandoc(input, imageMapping);
+
       expect(result).toContain('src="./images/abc123.png"');
       expect(result).not.toContain('https://arxiv.org/src');
     });
 
-    it('replaces multiple image URLs with correct local paths', () => {
+    it('replaces multiple image URLs with correct local paths', async () => {
       const input = `<html><body>
         <img src="https://arxiv.org/src/12345/v1/fig1.png">
         <img src="https://arxiv.org/src/12345/v1/fig2.png">
@@ -26,40 +26,40 @@ describe('prepareForPandoc', () => {
         { url: 'https://arxiv.org/src/12345/v1/fig2.png', localPath: '/tmp/b/img2.png' },
         { url: 'https://arxiv.org/src/12345/v1/diagram.jpg', localPath: '/tmp/c/diagram.jpg' }
       ];
-      
-      const result = prepareForPandoc(input, imageMapping);
-      
+
+      const result = await prepareForPandoc(input, imageMapping);
+
       expect(result).toContain('src="./images/img1.png"');
       expect(result).toContain('src="./images/img2.png"');
       expect(result).toContain('src="./images/diagram.jpg"');
     });
 
-    it('does not change images when imageMapping is empty', () => {
+    it('does not change images when imageMapping is empty', async () => {
       const input = '<html><body><img src="https://arxiv.org/src/12345/v1/fig1.png"></body></html>';
       const imageMapping: ImageMapping[] = [];
-      
-      const result = prepareForPandoc(input, imageMapping);
-      
+
+      const result = await prepareForPandoc(input, imageMapping);
+
       expect(result).toContain('src="https://arxiv.org/src/12345/v1/fig1.png"');
     });
 
-    it('does not change image if URL is not in mapping', () => {
+    it('does not change image if URL is not in mapping', async () => {
       const input = '<html><body><img src="https://arxiv.org/src/12345/v1/fig1.png"></body></html>';
       const imageMapping: ImageMapping[] = [
         { url: 'https://arxiv.org/src/99999/v1/other.png', localPath: '/tmp/xyz/other.png' }
       ];
-      
-      const result = prepareForPandoc(input, imageMapping);
-      
+
+      const result = await prepareForPandoc(input, imageMapping);
+
       expect(result).toContain('src="https://arxiv.org/src/12345/v1/fig1.png"');
     });
   });
 
   describe('MathML handling', () => {
-    it('preserves MathML elements', () => {
+    it('preserves MathML elements', async () => {
       const input = '<html><body><math><mi>x</mi><mo>+</mo><mi>y</mi></math></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toContain('<math');
       expect(result).toContain('<mi>x</mi>');
       expect(result).toContain('<mo>+</mo>');
@@ -67,15 +67,15 @@ describe('prepareForPandoc', () => {
       expect(result).toContain('</math>');
     });
 
-    it('wraps standalone MathML in div for Pandoc compatibility', () => {
+    it('wraps standalone MathML in div for Pandoc compatibility', async () => {
       const input = '<html><body><p><math><mi>x</mi></math></p></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toContain('<math');
       expect(result).toContain('class="ltx_math"');
     });
 
-    it('preserves complex MathML with mrow, mfrac, etc', () => {
+    it('preserves complex MathML with mrow, mfrac, etc', async () => {
       const input = `<html><body>
         <math>
           <mrow>
@@ -86,8 +86,8 @@ describe('prepareForPandoc', () => {
           </mrow>
         </math>
       </body></html>`;
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toContain('<math');
       expect(result).toContain('<mrow>');
       expect(result).toContain('<mfrac>');
@@ -100,26 +100,26 @@ describe('prepareForPandoc', () => {
   });
 
   describe('document structure', () => {
-    it('adds DOCTYPE if missing', () => {
+    it('adds DOCTYPE if missing', async () => {
       const input = '<html><body><p>Content</p></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result.toLowerCase()).toContain('<!doctype html>');
     });
 
-    it('preserves existing DOCTYPE', () => {
+    it('preserves existing DOCTYPE', async () => {
       const input = '<!DOCTYPE html><html><body><p>Content</p></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result.toLowerCase()).toContain('<!doctype html>');
       const doctypeCount = (result.toLowerCase().match(/<!doctype/g) || []).length;
       expect(doctypeCount).toBe(1);
     });
 
-    it('preserves html, head, body structure', () => {
+    it('preserves html, head, body structure', async () => {
       const input = '<html><head><title>Test</title></head><body><p>Content</p></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toContain('<html');
       expect(result).toContain('<head>');
       expect(result).toContain('<title>Test</title>');
@@ -128,10 +128,10 @@ describe('prepareForPandoc', () => {
       expect(result).toContain('</html>');
     });
 
-    it('outputs well-formed HTML', () => {
+    it('outputs well-formed HTML', async () => {
       const input = '<html><body><p>Test</p><img src="https://example.com/img.png"></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toMatch(/<html[^>]*>/);
       expect(result).toContain('</html>');
       expect(result).toMatch(/<body[^>]*>/);
@@ -140,25 +140,25 @@ describe('prepareForPandoc', () => {
   });
 
   describe('arXiv-specific classes', () => {
-    it('preserves ltx_equation classes', () => {
+    it('preserves ltx_equation classes', async () => {
       const input = '<html><body><div class="ltx_equation"><math><mi>x</mi></math></div></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toContain('ltx_equation');
       expect(result).toContain('<math');
     });
 
-    it('preserves other arXiv LaTeX classes', () => {
+    it('preserves other arXiv LaTeX classes', async () => {
       const input = '<html><body><div class="ltx_document"><p class="ltx_p">Text</p></div></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toContain('ltx_document');
       expect(result).toContain('ltx_p');
     });
   });
 
   describe('combined operations', () => {
-    it('handles both image replacement and MathML preservation', () => {
+    it('handles both image replacement and MathML preservation', async () => {
       const input = `<html><body>
         <img src="https://arxiv.org/src/123/v1/fig1.png">
         <math><mi>x</mi></math>
@@ -168,9 +168,9 @@ describe('prepareForPandoc', () => {
         { url: 'https://arxiv.org/src/123/v1/fig1.png', localPath: '/tmp/a/image1.png' },
         { url: 'https://arxiv.org/src/123/v1/fig2.png', localPath: '/tmp/b/image2.png' }
       ];
-      
-      const result = prepareForPandoc(input, imageMapping);
-      
+
+      const result = await prepareForPandoc(input, imageMapping);
+
       expect(result).toContain('src="./images/image1.png"');
       expect(result).toContain('src="./images/image2.png"');
       expect(result).toContain('<math');
@@ -178,7 +178,7 @@ describe('prepareForPandoc', () => {
       expect(result.toLowerCase()).toContain('<!doctype html>');
     });
 
-    it('handles complex arXiv HTML document', () => {
+    it('handles complex arXiv HTML document', async () => {
       const input = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -203,9 +203,9 @@ describe('prepareForPandoc', () => {
       const imageMapping: ImageMapping[] = [
         { url: 'https://arxiv.org/src/12345/v1/figure1.png', localPath: '/tmp/download/fig_001.png' }
       ];
-      
-      const result = prepareForPandoc(input, imageMapping);
-      
+
+      const result = await prepareForPandoc(input, imageMapping);
+
       expect(result).toContain('src="./images/fig_001.png"');
       expect(result).toContain('<math');
       expect(result).toContain('ltx_equation');
@@ -217,60 +217,60 @@ describe('prepareForPandoc', () => {
   });
 
   describe('internal link conversion', () => {
-    it('converts arxiv.org HTML links with anchors to internal anchors', () => {
+    it('converts arxiv.org HTML links with anchors to internal anchors', async () => {
       const input = '<html><body><a href="https://arxiv.org/html/2508.10146v1#S3.T2">Link</a></body></html>';
-      const result = prepareForPandoc(input, [], '2508.10146');
-      
+      const result = await prepareForPandoc(input, [], '2508.10146');
+
       expect(result).toContain('href="#S3.T2"');
       expect(result).not.toContain('arxiv.org');
     });
 
-    it('converts arxiv.org links with bib anchors', () => {
+    it('converts arxiv.org links with bib anchors', async () => {
       const input = '<html><body><a href="https://arxiv.org/html/2508.10146v1#bib.bib13">Reference</a></body></html>';
-      const result = prepareForPandoc(input, [], '2508.10146');
-      
+      const result = await prepareForPandoc(input, [], '2508.10146');
+
       expect(result).toContain('href="#bib.bib13"');
       expect(result).not.toContain('arxiv.org');
     });
 
-    it('preserves external links like github', () => {
+    it('preserves external links like github', async () => {
       const input = '<html><body><a href="https://github.com/user/repo">Code</a></body></html>';
-      const result = prepareForPandoc(input, [], '2508.10146');
-      
+      const result = await prepareForPandoc(input, [], '2508.10146');
+
       expect(result).toContain('href="https://github.com/user/repo"');
     });
 
-    it('preserves other external links', () => {
+    it('preserves other external links', async () => {
       const input = '<html><body><a href="https://example.com/page">External</a></body></html>';
-      const result = prepareForPandoc(input, [], '2508.10146');
-      
+      const result = await prepareForPandoc(input, [], '2508.10146');
+
       expect(result).toContain('href="https://example.com/page"');
     });
 
-    it('handles www.arxiv.org URLs', () => {
+    it('handles www.arxiv.org URLs', async () => {
       const input = '<html><body><a href="https://www.arxiv.org/html/2508.10146v1#S2">Section</a></body></html>';
-      const result = prepareForPandoc(input, [], '2508.10146');
-      
+      const result = await prepareForPandoc(input, [], '2508.10146');
+
       expect(result).toContain('href="#S2"');
     });
 
-    it('handles multiple arxiv links in same document', () => {
+    it('handles multiple arxiv links in same document', async () => {
       const input = `<html><body>
         <a href="https://arxiv.org/html/2508.10146v1#S1">Section 1</a>
         <a href="https://arxiv.org/html/2508.10146v1#S2.T1">Table</a>
         <a href="https://external.com">External</a>
       </body></html>`;
-      const result = prepareForPandoc(input, [], '2508.10146');
-      
+      const result = await prepareForPandoc(input, [], '2508.10146');
+
       expect(result).toContain('href="#S1"');
       expect(result).toContain('href="#S2.T1"');
       expect(result).toContain('href="https://external.com"');
     });
 
-    it('does not convert links when paperId is not provided', () => {
+    it('does not convert links when paperId is not provided', async () => {
       const input = '<html><body><a href="https://arxiv.org/html/2508.10146v1#S3.T2">Link</a></body></html>';
-      const result = prepareForPandoc(input, []);
-      
+      const result = await prepareForPandoc(input, []);
+
       expect(result).toContain('href="https://arxiv.org/html/2508.10146v1#S3.T2"');
     });
   });

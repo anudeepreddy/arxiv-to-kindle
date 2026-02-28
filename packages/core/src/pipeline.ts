@@ -10,10 +10,51 @@ import { downloadImages, type ImageDownloadResult } from './image-downloader.js'
 import { prepareForPandoc, type ImageMapping } from './pandoc-prep.js';
 import { runPandoc } from './pandoc.js';
 import { convertLatexSource } from './latex-fallback.js';
-import { injectMetadata, type EpubMetadata } from './epub-meta.js';
+import { injectMetadata, inlineSvgs, type EpubMetadata } from './epub-meta.js';
 import { checkDependencies } from './preflight.js';
 import { PandocNotInstalledError, InvalidIdError, ArxivNotFoundError } from './errors.js';
 import { NotFoundError } from './errors.js';
+
+const EPUB_CSS = `
+img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 100%;
+  height: auto;
+}
+figure.ltx_figure {
+  text-align: center;
+}
+.ltx_listing {
+  font-family: monospace;
+  font-size: 0.9em;
+  overflow-x: auto;
+  padding: 0.5em;
+  margin: 1em 0;
+  background-color: #f5f5f5;
+}
+.ltx_listingline {
+  white-space: pre;
+}
+.ltx_lst_identifier {
+  color: #006699;
+}
+.ltx_lst_string {
+  color: #c00;
+}
+.ltx_lst_keyword {
+  color: #069;
+  font-weight: bold;
+}
+.ltx_lst_comment {
+  color: #999;
+  font-style: italic;
+}
+.ltx_lst_number {
+  color: #099;
+}
+`;
 
 export interface ConversionOptions {
   preferMathml?: boolean;
@@ -67,14 +108,18 @@ async function handleHtmlRoute(
   }
 
   onProgress('preparing', 'Preparing for conversion...');
-  const preparedHtml = prepareForPandoc(resolvedHtml, imageMapping, idString);
+  const preparedHtml = await prepareForPandoc(resolvedHtml, imageMapping, idString, imagesDir);
 
   const inputHtmlPath = join(tempDir, 'input.html');
   await fs.writeFile(inputHtmlPath, preparedHtml);
 
+  const cssPath = join(tempDir, 'epub.css');
+  await fs.writeFile(cssPath, EPUB_CSS);
+
   onProgress('converting', 'Converting to EPUB...');
   await runPandoc(inputHtmlPath, outputPath, {
     mathFormat: options.preferMathml !== false ? 'mathml' : 'svg',
+    cssPath,
   });
 }
 
@@ -178,6 +223,9 @@ export async function convertArxivToEpub(
       subjects: options?.metadata?.subjects || [],
     };
     await injectMetadata(outputPath, epubMetadata);
+
+    onProgress('inlining', 'Inlining SVG images...');
+    await inlineSvgs(outputPath);
 
     onProgress('complete', 'Done!');
 

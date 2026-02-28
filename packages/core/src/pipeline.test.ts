@@ -63,7 +63,7 @@ describe('convertArxivToEpub', () => {
       imageUrls: [],
     });
     mockDownloadImages.mockResolvedValue([]);
-    mockPrepareForPandoc.mockReturnValue('<!DOCTYPE html><html><body>Prepared</body></html>');
+    mockPrepareForPandoc.mockResolvedValue('<!DOCTYPE html><html><body>Prepared</body></html>');
     mockRunPandoc.mockResolvedValue(undefined);
     mockConvertLatexSource.mockResolvedValue(undefined);
     mockInjectMetadata.mockResolvedValue(undefined);
@@ -283,7 +283,8 @@ describe('convertArxivToEpub', () => {
           { url: 'https://example.com/image1.png', localPath: '/tmp/img1.png' },
           { url: 'https://example.com/image2.png', localPath: '/tmp/img2.png' },
         ],
-        '2301.12345'
+        '2301.12345',
+        expect.any(String)
       );
     });
 

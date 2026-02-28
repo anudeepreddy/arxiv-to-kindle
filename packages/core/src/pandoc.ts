@@ -1,12 +1,13 @@
 import { execa } from 'execa';
 import { pathExists } from 'fs-extra/esm';
-import { dirname } from 'node:path';
+import { dirname, basename } from 'node:path';
 import { PandocError } from './errors.js';
 
 export interface PandocOptions {
   mathFormat?: 'mathml' | 'svg';
   toc?: boolean;
   metadata?: Record<string, string>;
+  cssPath?: string;
 }
 
 export async function runPandoc(
@@ -36,6 +37,10 @@ export async function runPandoc(
   const imagesDir = `${inputDir}/images`;
   if (await pathExists(imagesDir)) {
     args.push('--resource-path', inputDir);
+  }
+
+  if (options?.cssPath) {
+    args.push('--css', options.cssPath);
   }
 
   args.push(inputHtmlPath, '-o', outputEpubPath);

@@ -21,4 +21,5 @@ export { prepareForPandoc, type ImageMapping } from './pandoc-prep.js';
 export { runPandoc, type PandocOptions } from './pandoc.js';
 export { convertLatexSource } from './latex-fallback.js';
 export { convertArxivToEpub, type ConversionOptions, type ConversionResult } from './pipeline.js';
+export { extractMetadata, sanitizeFilename, type ExtractedMetadata } from './metadata-extractor.js';
 export { checkDependencies, type PreflightResult } from './preflight.js';

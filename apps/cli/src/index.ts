@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { 
-  convertArxivToEpub, 
+import {
+  convertArxivToEpub,
   normalizeArxivId,
   checkDependencies,
+  sanitizeFilename,
   PandocNotInstalledError,
   Tex4ebookNotInstalledError,
   ArxivNotFoundError,
@@ -11,7 +12,7 @@ import {
   DependencyError
 } from '@arxiv-to-kindle/core';
 import { resolve, basename } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, renameSync } from 'fs';
 import { mkdirSync, writeFileSync } from 'fs';
 
 const program = new Command();
@@ -72,17 +73,31 @@ program
       const result = await convertArxivToEpub(id, resolvedOutput, {
         preferMathml: !options.mathSvg,
         skipPreflight: options.skipPreflight,
-        onProgress: options.verbose 
+        onProgress: options.verbose
           ? (stage: string, message?: string) => {
               console.log(`[${stage}] ${message || ''}`);
             }
           : undefined,
       });
 
+      // If no output was specified and we have metadata, rename to use paper title
+      let finalOutputPath = resolvedOutput;
+      if (!output && result.metadata?.title) {
+        const sanitizedTitle = sanitizeFilename(result.metadata.title);
+        if (sanitizedTitle) {
+          const newFilename = `${sanitizedTitle}.epub`;
+          const newPath = resolve(newFilename);
+          if (newPath !== resolvedOutput && !existsSync(newPath)) {
+            renameSync(resolvedOutput, newPath);
+            finalOutputPath = newPath;
+          }
+        }
+      }
+
       if (options.verbose) {
         console.log(`Conversion complete! Source format: ${result.format}`);
       }
-      console.log(`Created: ${resolvedOutput}`);
+      console.log(`Created: ${finalOutputPath}`);
     } catch (error) {
       if (error instanceof PandocNotInstalledError) {
         console.error('Error: Pandoc not found.');

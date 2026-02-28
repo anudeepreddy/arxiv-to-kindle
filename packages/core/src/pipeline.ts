@@ -6,6 +6,7 @@ import { probeAvailability, type ProbeResult } from './probe.js';
 import { fetchHtml } from './fetcher.js';
 import { sanitizeScripts, removeTransformStyles, normalizeWhitespace } from './cleaner.js';
 import { resolveImageUrls } from './image-resolver.js';
+import { extractMetadata, type ExtractedMetadata } from './metadata-extractor.js';
 import { downloadImages, type ImageDownloadResult } from './image-downloader.js';
 import { prepareForPandoc, type ImageMapping } from './pandoc-prep.js';
 import { runPandoc } from './pandoc.js';
@@ -71,6 +72,7 @@ export interface ConversionOptions {
 export interface ConversionResult {
   format: 'html' | 'ar5iv' | 'latex' | 'pdf_fallback';
   outputPath: string;
+  metadata?: ExtractedMetadata;
 }
 
 async function handleHtmlRoute(
@@ -80,9 +82,12 @@ async function handleHtmlRoute(
   idString: string,
   options: ConversionOptions,
   onProgress: (stage: string, message?: string) => void
-): Promise<void> {
+): Promise<ExtractedMetadata> {
   onProgress('fetching', 'Downloading HTML...');
   const { html, finalUrl } = await fetchHtml(probeResult.url);
+
+  onProgress('extracting', 'Extracting metadata...');
+  const extractedMetadata = extractMetadata(html);
 
   onProgress('cleaning', 'Sanitizing HTML...');
   let cleanedHtml = sanitizeScripts(html);
@@ -100,7 +105,7 @@ async function handleHtmlRoute(
 
   const imagesDir = join(tempDir, 'images');
   let imageMapping: ImageMapping[] = [];
-  
+
   if (imageUrls.length > 0) {
     await fs.ensureDir(imagesDir);
     onProgress('downloading', 'Downloading images...');
@@ -127,6 +132,8 @@ async function handleHtmlRoute(
     mathFormat: options.preferMathml !== false ? 'mathml' : 'svg',
     cssPath,
   });
+
+  return extractedMetadata;
 }
 
 async function handleLatexRoute(
@@ -183,10 +190,11 @@ export async function convertArxivToEpub(
     const probeResult: ProbeResult = await probeAvailability(idString);
 
     let format: ConversionResult['format'];
+    let extractedMetadata: ExtractedMetadata | undefined;
 
     switch (probeResult.type) {
       case 'html':
-        await handleHtmlRoute(
+        extractedMetadata = await handleHtmlRoute(
           { type: 'html', url: probeResult.url },
           outputPath,
           tempDir,
@@ -198,7 +206,7 @@ export async function convertArxivToEpub(
         break;
 
       case 'ar5iv':
-        await handleHtmlRoute(
+        extractedMetadata = await handleHtmlRoute(
           { type: 'ar5iv', url: probeResult.url },
           outputPath,
           tempDir,
@@ -222,11 +230,11 @@ export async function convertArxivToEpub(
 
     onProgress('metadata', 'Adding metadata...');
     const epubMetadata: EpubMetadata = {
-      title: options?.metadata?.title || `arXiv:${idString}`,
-      authors: options?.metadata?.authors || [],
-      abstract: options?.metadata?.abstract || '',
+      title: options?.metadata?.title || extractedMetadata?.title || `arXiv:${idString}`,
+      authors: options?.metadata?.authors || extractedMetadata?.authors || [],
+      abstract: options?.metadata?.abstract || extractedMetadata?.abstract || '',
       arxivId: idString,
-      subjects: options?.metadata?.subjects || [],
+      subjects: options?.metadata?.subjects || extractedMetadata?.subjects || [],
     };
     await injectMetadata(outputPath, epubMetadata);
 
@@ -238,6 +246,7 @@ export async function convertArxivToEpub(
     return {
       format,
       outputPath,
+      metadata: extractedMetadata,
     };
   } finally {
     await fs.remove(tempDir);

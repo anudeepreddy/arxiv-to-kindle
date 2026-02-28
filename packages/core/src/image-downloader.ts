@@ -20,7 +20,7 @@ const CONTENT_TYPE_MAP: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-const BINARY_EXTENSIONS = ['.shtml', '.html', '.htm', '.php', '.asp', '.aspx', '.jsp'];
+const BINARY_EXTENSIONS = ['.html', '.htm', '.php', '.asp', '.aspx', '.jsp'];
 
 const SVG_EXTENSIONS = ['.svg', '.svgz'];
 
@@ -72,7 +72,7 @@ async function downloadSingleImage(
 ): Promise<ImageDownloadResult> {
   const tempFilename = generateFilename(url);
   const localPath = path.join(tempDir, tempFilename);
-  
+
   try {
     const response = await axios.get(url, {
       responseType: 'arraybuffer',
@@ -81,22 +81,22 @@ async function downloadSingleImage(
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
-    
+
     const contentType = response.headers['content-type'];
-    let data = Buffer.isBuffer(response.data) 
-      ? response.data 
+    let data = Buffer.isBuffer(response.data)
+      ? response.data
       : Buffer.from(response.data);
-    
+
     // Check if content is SVG
     const isSvg = isSvgContent(data);
-    
+
     // Generate proper filename based on content type
     let finalFilename: string;
     if (isSvg) {
       finalFilename = generateFilename(url, true);
     } else {
       finalFilename = generateFilename(url);
-      
+
       // If still .bin, try to detect from content type
       if (finalFilename.endsWith('.bin') && contentType) {
         const ext = getExtensionFromContentType(contentType);
@@ -104,7 +104,7 @@ async function downloadSingleImage(
           finalFilename = finalFilename.replace('.bin', ext);
         }
       }
-      
+
       // If still .bin, try content detection
       if (finalFilename.endsWith('.bin')) {
         const detectedExt = detectExtensionFromContent(data, contentType);
@@ -113,7 +113,7 @@ async function downloadSingleImage(
         }
       }
     }
-    
+
     const finalPath = path.join(tempDir, finalFilename);
     await fs.writeFile(finalPath, data);
     

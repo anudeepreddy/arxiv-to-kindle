@@ -35,18 +35,23 @@ function isTimeoutError(error: unknown): boolean {
   return false;
 }
 
+export interface FetchHtmlResult {
+  html: string;
+  finalUrl: string;
+}
+
 export async function fetchHtml(url: string, options?: {
   maxRetries?: number;
   timeout?: number;
-}): Promise<string> {
+}): Promise<FetchHtmlResult> {
   const maxRetries = options?.maxRetries ?? 3;
   const timeout = options?.timeout ?? 30000;
-  
+
   let lastError: Error | undefined;
-  
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const userAgent = USER_AGENTS[attempt % USER_AGENTS.length];
-    
+
     try {
       const response = await axios.get(url, {
         timeout,
@@ -54,26 +59,29 @@ export async function fetchHtml(url: string, options?: {
           'User-Agent': userAgent,
         },
       });
-      
-      if (typeof response.data === 'string' && response.data.includes('<html')) {
-        return response.data;
-      }
-      
-      return response.data;
+
+      // Get the final URL after any redirects
+      const finalUrl = response.request.res.responseUrl || url;
+
+      const html = (typeof response.data === 'string' && response.data.includes('<html'))
+        ? response.data
+        : response.data;
+
+      return { html, finalUrl };
     } catch (error) {
       const status = getStatusCode(error);
-      
+
       if (status === 404) {
         throw new NotFoundError(url);
       }
-      
+
       if (status && status >= 400 && status < 500) {
         const axiosErr = error instanceof AxiosError ? error : undefined;
         throw new FetchError(`Request failed with status ${status}`, axiosErr);
       }
-      
+
       if (isTimeoutError(error)) {
-        const axiosErr = error instanceof AxiosError ? error : 
+        const axiosErr = error instanceof AxiosError ? error :
           (error instanceof Error ? error : undefined);
         lastError = new FetchError(`Request timed out after ${timeout}ms`, axiosErr);
       } else if (error instanceof Error) {
@@ -82,13 +90,13 @@ export async function fetchHtml(url: string, options?: {
         lastError = new Error(String(error));
       }
     }
-    
+
     if (attempt < maxRetries) {
       const delay = 100 * Math.pow(2, attempt);
       await sleep(delay);
     }
   }
-  
+
   throw new FetchError(
     `Failed to fetch ${url} after ${maxRetries + 1} attempts`,
     lastError

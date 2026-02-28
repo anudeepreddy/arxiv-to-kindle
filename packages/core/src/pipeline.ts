@@ -82,14 +82,19 @@ async function handleHtmlRoute(
   onProgress: (stage: string, message?: string) => void
 ): Promise<void> {
   onProgress('fetching', 'Downloading HTML...');
-  const html = await fetchHtml(probeResult.url);
+  const { html, finalUrl } = await fetchHtml(probeResult.url);
 
   onProgress('cleaning', 'Sanitizing HTML...');
   let cleanedHtml = sanitizeScripts(html);
   cleanedHtml = removeTransformStyles(cleanedHtml);
 
   onProgress('resolving', 'Processing images...');
-  const baseUrl = probeResult.url.endsWith('/') ? probeResult.url : probeResult.url + '/';
+  // For arXiv HTML, images are in a versioned subdirectory (e.g., 2602.21548v2/)
+  // but the HTML is served from the parent URL (e.g., 2602.21548 or 2602.21548v2).
+  // We need to use the parent directory as base to correctly resolve image URLs.
+  const finalUrlObj = new URL(finalUrl);
+  const parentPath = finalUrlObj.pathname.split('/').slice(0, -1).join('/') + '/';
+  const baseUrl = `${finalUrlObj.origin}${parentPath}`;
   const { cleanedHtml: resolvedHtml, imageUrls } = resolveImageUrls(cleanedHtml, baseUrl);
 
   const imagesDir = join(tempDir, 'images');

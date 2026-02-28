@@ -56,7 +56,7 @@ describe('convertArxivToEpub', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockNormalizeArxivId.mockReturnValue({ id: '2301.12345' });
-    mockFetchHtml.mockResolvedValue('<html><body>Test</body></html>');
+    mockFetchHtml.mockResolvedValue({ html: '<html><body>Test</body></html>', finalUrl: 'https://arxiv.org/html/2301.12345' });
     mockSanitizeScripts.mockReturnValue('<html><body>Sanitized</body></html>');
     mockResolveImageUrls.mockReturnValue({
       cleanedHtml: '<html><body>Resolved</body></html>',

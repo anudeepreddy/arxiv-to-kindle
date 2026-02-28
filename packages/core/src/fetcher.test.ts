@@ -20,11 +20,15 @@ describe('fetchHtml', () => {
 
   it('returns HTML content when server returns 200', async () => {
     const htmlContent = '<html><body>Test</body></html>';
-    mockedAxios.get.mockResolvedValueOnce({ data: htmlContent });
+    mockedAxios.get.mockResolvedValueOnce({
+      data: htmlContent,
+      request: { res: { responseUrl: 'https://example.com' } },
+    });
 
     const result = await fetchHtml('https://example.com');
 
-    expect(result).toContain('<html>');
+    expect(result.html).toContain('<html>');
+    expect(result.finalUrl).toBe('https://example.com');
     expect(mockedAxios.get).toHaveBeenCalledWith(
       'https://example.com',
       expect.objectContaining({
@@ -40,13 +44,13 @@ describe('fetchHtml', () => {
     mockedAxios.get
       .mockRejectedValueOnce({ response: { status: 500 } })
       .mockRejectedValueOnce({ response: { status: 502 } })
-      .mockResolvedValueOnce({ data: '<html>Success</html>' });
+      .mockResolvedValueOnce({ data: '<html>Success</html>', request: { res: { responseUrl: 'https://example.com' } } });
 
     const fetchPromise = fetchHtml('https://example.com');
     await vi.runAllTimersAsync();
     const result = await fetchPromise;
 
-    expect(result).toContain('<html>');
+    expect(result.html).toContain('<html>');
     expect(mockedAxios.get).toHaveBeenCalledTimes(3);
   });
 
@@ -68,18 +72,18 @@ describe('fetchHtml', () => {
     mockedAxios.get
       .mockRejectedValueOnce({ response: { status: 500 } })
       .mockRejectedValueOnce({ response: { status: 500 } })
-      .mockResolvedValueOnce({ data: '<html>Success</html>' });
+      .mockResolvedValueOnce({ data: '<html>Success</html>', request: { res: { responseUrl: 'https://example.com' } } });
 
     const fetchPromise = fetchHtml('https://example.com');
-    
+
     await vi.advanceTimersByTimeAsync(100);
     expect(mockedAxios.get).toHaveBeenCalledTimes(2);
-    
+
     await vi.advanceTimersByTimeAsync(200);
     expect(mockedAxios.get).toHaveBeenCalledTimes(3);
-    
+
     const result = await fetchPromise;
-    expect(result).toContain('<html>');
+    expect(result.html).toContain('<html>');
   });
 
   it('throws FetchError on timeout after retries exhausted', async () => {
@@ -116,7 +120,7 @@ describe('fetchHtml', () => {
   });
 
   it('uses custom timeout and maxRetries options', async () => {
-    mockedAxios.get.mockResolvedValueOnce({ data: '<html>Test</html>' });
+    mockedAxios.get.mockResolvedValueOnce({ data: '<html>Test</html>', request: { res: { responseUrl: 'https://example.com' } } });
 
     await fetchHtml('https://example.com', { timeout: 5000, maxRetries: 1 });
 
@@ -132,7 +136,7 @@ describe('fetchHtml', () => {
     mockedAxios.get
       .mockRejectedValueOnce({ response: { status: 500 } })
       .mockRejectedValueOnce({ response: { status: 500 } })
-      .mockResolvedValueOnce({ data: '<html>Success</html>' });
+      .mockResolvedValueOnce({ data: '<html>Success</html>', request: { res: { responseUrl: 'https://example.com' } } });
 
     const fetchPromise = fetchHtml('https://example.com');
     await vi.runAllTimersAsync();
@@ -145,7 +149,7 @@ describe('fetchHtml', () => {
     expect(firstCall.headers['User-Agent']).toBeDefined();
     expect(secondCall.headers['User-Agent']).toBeDefined();
     expect(thirdCall.headers['User-Agent']).toBeDefined();
-    
+
     expect(firstCall.headers['User-Agent']).not.toBe(secondCall.headers['User-Agent']);
     expect(secondCall.headers['User-Agent']).not.toBe(thirdCall.headers['User-Agent']);
   });
@@ -153,13 +157,13 @@ describe('fetchHtml', () => {
   it('retries on network errors', async () => {
     mockedAxios.get
       .mockRejectedValueOnce(new Error('Network error'))
-      .mockResolvedValueOnce({ data: '<html>Success</html>' });
+      .mockResolvedValueOnce({ data: '<html>Success</html>', request: { res: { responseUrl: 'https://example.com' } } });
 
     const fetchPromise = fetchHtml('https://example.com');
     await vi.runAllTimersAsync();
     const result = await fetchPromise;
 
-    expect(result).toContain('<html>');
+    expect(result.html).toContain('<html>');
     expect(mockedAxios.get).toHaveBeenCalledTimes(2);
   });
 });

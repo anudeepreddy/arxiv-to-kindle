@@ -39,8 +39,12 @@ export function removeTransformStyles(html: string): string {
 }
 
 export function normalizeWhitespace(html: string): string {
-  // Convert non-breaking spaces (U+00A0) to regular spaces
-  return html.replace(/\u00A0/g, ' ');
+  // Convert various Unicode space characters to regular spaces
+  // U+00A0: NBSP, U+2002: EN SPACE, U+2003: EM SPACE -> regular space
+  // U+200B: ZERO WIDTH SPACE -> remove entirely
+  return html
+    .replace(/[\u00A0\u2002\u2003]/g, ' ')
+    .replace(/\u200B/g, '');
 }
 
 export function sanitizeScripts(html: string): string {
